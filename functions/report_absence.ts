@@ -62,6 +62,42 @@ export default SlackFunction(
 .addViewSubmissionHandler("absence_type_modal", async ({ view }) => {
   const recurring = view.state.values.recurring_block.recurring_select.selected_option.value;
   let nextModal;
+  const absenceTypeBlock = {
+    type: "input",
+    block_id: "absence_type_block",
+    label: { type: "plain_text", text: "Absence Type" },
+    element: {
+      type: "static_select",
+      action_id: "absence_type",
+      options: [
+        { text: { type: "plain_text", text: "Full Meeting" }, value: "full" },
+        { text: { type: "plain_text", text: "Late Arrival / Early Departure" }, value: "partial" },
+      ],
+    },
+  };
+  const arrivalTimeBlock = {
+    type: "input",
+    block_id: "arrival_time_block",
+    label: { type: "plain_text", text: "Arrival Time" },
+    optional: true,
+    element: {
+      type: "timepicker",
+      action_id: "arrival_time",
+      placeholder: { type: "plain_text", text: "Select time" },
+    },
+  };
+  const departureTimeBlock = {
+    type: "input",
+    block_id: "departure_time_block",
+    label: { type: "plain_text", text: "Departure Time" },
+    optional: true,
+    element: {
+      type: "timepicker",
+      action_id: "departure_time",
+      placeholder: { type: "plain_text", text: "Select time" },
+    },
+  };
+
   if (recurring === "yes") {
     nextModal = {
       type: "modal",
@@ -69,15 +105,6 @@ export default SlackFunction(
       title: { type: "plain_text", text: "Recurring Absence" },
       submit: { type: "plain_text", text: "Submit" },
       blocks: [
-        {
-          type: "input",
-          block_id: "employee_block_rec",
-          label: { type: "plain_text", text: "Employee" },
-          element: {
-            type: "users_select",
-            action_id: "employee_rec",
-          },
-        },
         {
           type: "input",
           block_id: "start_block",
@@ -113,6 +140,9 @@ export default SlackFunction(
             ],
           },
         },
+        absenceTypeBlock,
+        arrivalTimeBlock,
+        departureTimeBlock,
         {
           type: "input",
           block_id: "reason_block_rec",
@@ -120,6 +150,18 @@ export default SlackFunction(
           element: {
             type: "plain_text_input",
             action_id: "reason_rec",
+          },
+        },
+        {
+          type: "input",
+          block_id: "notes_block_rec",
+          label: { type: "plain_text", text: "Notes" },
+          optional: true,
+          element: {
+            type: "plain_text_input",
+            action_id: "notes_rec",
+            multiline: true,
+            placeholder: { type: "plain_text", text: "Additional notes (optional)" },
           },
         },
       ],
@@ -133,15 +175,6 @@ export default SlackFunction(
       blocks: [
         {
           type: "input",
-          block_id: "employee_block_one",
-          label: { type: "plain_text", text: "Employee" },
-          element: {
-            type: "users_select",
-            action_id: "employee_one",
-          },
-        },
-        {
-          type: "input",
           block_id: "date_block",
           label: { type: "plain_text", text: "Date" },
           element: {
@@ -149,6 +182,9 @@ export default SlackFunction(
             action_id: "date",
           },
         },
+        absenceTypeBlock,
+        arrivalTimeBlock,
+        departureTimeBlock,
         {
           type: "input",
           block_id: "reason_block_one",
@@ -156,6 +192,18 @@ export default SlackFunction(
           element: {
             type: "plain_text_input",
             action_id: "reason_one",
+          },
+        },
+        {
+          type: "input",
+          block_id: "notes_block_one",
+          label: { type: "plain_text", text: "Notes" },
+          optional: true,
+          element: {
+            type: "plain_text_input",
+            action_id: "notes_one",
+            multiline: true,
+            placeholder: { type: "plain_text", text: "Additional notes (optional)" },
           },
         },
       ],
@@ -170,12 +218,16 @@ export default SlackFunction(
   console.log("recurring_absence_modal handler called");
   try {
     // Gather values
-    const employee = view.state.values.employee_block_rec.employee_rec.selected_user;
+    const employee = inputs.interactivity.interactor.id;
     const start = view.state.values.start_block.start.selected_date;
     const end = view.state.values.end_block.end.selected_date;
     const reason = view.state.values.reason_block_rec.reason_rec.value;
+    const notes = view.state.values.notes_block_rec?.notes_rec?.value || "";
     const weekdays = view.state.values.weekdays_block.weekdays.selected_options.map(opt => parseInt(opt.value, 10));
-    console.log("Parsed values:", { employee, start, end, reason, weekdays });
+    const absenceType = view.state.values.absence_type_block.absence_type.selected_option.value;
+    const arrivalTime = view.state.values.arrival_time_block?.arrival_time?.selected_time || "";
+    const departureTime = view.state.values.departure_time_block?.departure_time?.selected_time || "";
+    console.log("Parsed values:", { employee, start, end, reason, notes, weekdays, absenceType, arrivalTime, departureTime });
 
     // Get user info
     const user = await client.users.profile.get({ user: employee });
@@ -200,7 +252,7 @@ export default SlackFunction(
       const jsDay = current.getDay();
       if (weekdays.includes(jsDay === 0 ? 7 : jsDay)) {
         const dateStr = current.toISOString().slice(0, 10);
-        rows.push([name, employee, dateStr, reason]);
+        rows.push([name, employee, dateStr, absenceType, arrivalTime, departureTime, reason, notes]);
       }
       current.setDate(current.getDate() + 1);
     }
@@ -213,14 +265,14 @@ export default SlackFunction(
 
     // Write all rows to Google Sheets
     const url =
-      `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SPREADSHEET_ID}/values/Absences!A2:D2:append?valueInputOption=USER_ENTERED`;
+      `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SPREADSHEET_ID}/values/Absences!A2:H2:append?valueInputOption=USER_ENTERED`;
     const sheets = await fetch(url, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${auth.external_token}`,
       },
       body: JSON.stringify({
-        range: "Absences!A2:D2",
+        range: "Absences!A2:H2",
         majorDimension: "ROWS",
         values: rows,
       }),
@@ -258,13 +310,17 @@ export default SlackFunction(
 .addViewSubmissionHandler("one_time_absence_modal", async ({ view, client, inputs, env }) => {
   console.log("one_time_absence_modal handler called");
   try {
-    const employee = view.state.values.employee_block_one?.employee_one?.selected_user;
+    const employee = inputs.interactivity.interactor.id;
     const date = view.state.values.date_block?.date?.selected_date;
+    const absenceType = view.state.values.absence_type_block.absence_type.selected_option.value;
+    const arrivalTime = view.state.values.arrival_time_block?.arrival_time?.selected_time || "";
+    const departureTime = view.state.values.departure_time_block?.departure_time?.selected_time || "";
     const reason = view.state.values.reason_block_one?.reason_one?.value;
-    console.log("Parsed values:", { employee, date, reason });
+    const notes = view.state.values.notes_block_one?.notes_one?.value || "";
+    console.log("Parsed values:", { employee, date, absenceType, arrivalTime, departureTime, reason, notes });
 
-    if (!employee || !date || !reason) {
-      console.warn("Missing required fields:", { employee, date, reason });
+    if (!date || !reason) {
+      console.warn("Missing required fields:", { date, reason });
       return { error: "Please fill out all required fields." };
     }
 
@@ -282,16 +338,16 @@ export default SlackFunction(
     console.log("Google auth token acquired");
 
     const url =
-      `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SPREADSHEET_ID}/values/Absences!A2:D2:append?valueInputOption=USER_ENTERED`;
+      `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SPREADSHEET_ID}/values/Absences!A2:H2:append?valueInputOption=USER_ENTERED`;
     const sheets = await fetch(url, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${auth.external_token}`,
       },
       body: JSON.stringify({
-        range: "Absences!A2:D2",
+        range: "Absences!A2:H2",
         majorDimension: "ROWS",
-        values: [[name, employee, date, reason]],
+        values: [[name, employee, date, absenceType, arrivalTime, departureTime, reason, notes]],
       }),
     });
     console.log("Sheets API response status:", sheets.status);
