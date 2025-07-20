@@ -61,40 +61,98 @@ export default SlackFunction(
       
       console.log(`Found ${absenceRows.length} absences for today`);
 
-      let message = "";
+      // Get today's date for the header
+      const today = new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'numeric', 
+        day: 'numeric' 
+      });
+
+      let blocks: any[] = [];
       
+      // Header section - using header block type like in example
+      blocks.push({
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: `Absences for ${today}`,
+          emoji: true
+        }
+      });
+
+      blocks.push({
+        type: "divider"
+      });
+
       if (absenceRows.length === 0) {
-        message = "🎉 Great news! No absences reported for today.";
+        // No absences - celebration message
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: ":tada: *Great news!*\nNo absences reported for today."
+          }
+        });
       } else {
-        message = `📅 *Today's Absences (${absenceRows.length} total)*\n\n`;
-        
-        absenceRows.forEach((row, index) => {
+        // Add each absence following the example format
+        absenceRows.forEach((row) => {
           const [name, employeeId, date, absenceType, arrivalTime, departureTime, reason, notes] = row;
           
-          message += `${index + 1}. *${name || 'Unknown'}*\n`;
-          message += `   • Type: ${absenceType || 'Not specified'}\n`;
+          // Determine absence type text
+          const absenceTypeText = absenceType === "full" ? "Full Meeting Absence" : "Late Arrival / Early Departure";
           
+          // Main absence section - @mention user and type
+          blocks.push({
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `<@${employeeId}>\n${absenceTypeText}`
+            }
+          });
+
+          // Add time context only if there are arrival/departure times
+          const timeElements: any[] = [];
           if (arrivalTime) {
-            message += `   • Arrival: ${arrivalTime}\n`;
+            timeElements.push({
+              type: "mrkdwn",
+              text: `🕐 Arriving: ${arrivalTime}`
+            });
           }
           if (departureTime) {
-            message += `   • Departure: ${departureTime}\n`;
+            timeElements.push({
+              type: "mrkdwn", 
+              text: `🕐 Departing: ${departureTime}`
+            });
           }
-          
-          message += `   • Reason: ${reason || 'Not specified'}\n`;
-          
-          if (notes) {
-            message += `   • Notes: ${notes}\n`;
+
+          // Only add context block if there are time elements
+          if (timeElements.length > 0) {
+            blocks.push({
+              type: "context",
+              elements: timeElements
+            });
           }
-          
-          message += "\n";
+        });
+
+        // Add footer - divider and summary
+        blocks.push({
+          type: "divider"
+        });
+
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `📊 *Total absences: ${absenceRows.length}*`
+          }
         });
       }
 
-      // Send message to the specified channel
+      // Send message with blocks to the specified channel
       const result = await client.chat.postMessage({
         channel: inputs.channel,
-        text: message,
+        blocks: blocks,
+        text: `Absences for ${today}`, // Fallback text for notifications
         unfurl_links: false,
         unfurl_media: false,
       });

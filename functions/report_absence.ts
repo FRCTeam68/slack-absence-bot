@@ -265,14 +265,14 @@ export default SlackFunction(
 
     // Write all rows to Google Sheets
     const url =
-      `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SPREADSHEET_ID}/values/Absences!A2:H2:append?valueInputOption=USER_ENTERED`;
+      `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SPREADSHEET_ID}/values/Absence%20Responses!A2:H2:append?valueInputOption=USER_ENTERED`;
     const sheets = await fetch(url, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${auth.external_token}`,
       },
       body: JSON.stringify({
-        range: "Absences!A2:H2",
+        range: "Absence Responses!A2:H2",
         majorDimension: "ROWS",
         values: rows,
       }),
@@ -338,14 +338,14 @@ export default SlackFunction(
     console.log("Google auth token acquired");
 
     const url =
-      `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SPREADSHEET_ID}/values/Absences!A2:H2:append?valueInputOption=USER_ENTERED`;
+      `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SPREADSHEET_ID}/values/Absence%20Responses!A2:H2:append?valueInputOption=USER_ENTERED`;
     const sheets = await fetch(url, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${auth.external_token}`,
       },
       body: JSON.stringify({
-        range: "Absences!A2:H2",
+        range: "Absence Responses!A2:H2",
         majorDimension: "ROWS",
         values: [[name, employee, date, absenceType, arrivalTime, departureTime, reason, notes]],
       }),

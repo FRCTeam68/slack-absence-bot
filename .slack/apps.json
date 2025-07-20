@@ -1,1 +1,10 @@
-{}
+{
+  "apps": {
+    "T69JVJE1Z": {
+      "app_id": "A096L43CTE1",
+      "team_domain": "t3robotics",
+      "team_id": "T69JVJE1Z"
+    }
+  },
+  "default": "t3robotics"
+}
