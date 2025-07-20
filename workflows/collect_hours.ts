@@ -64,3 +64,4 @@ CollectHoursWorkflow.addStep(SaveHoursFunctionDefinition, {
 });
 
 export default CollectHoursWorkflow;
+
