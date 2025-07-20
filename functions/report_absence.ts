@@ -196,44 +196,42 @@ export default SlackFunction(
           },
         ],
   };
-
-  await client.views.update({
-    view_id: view.id,
-    view: secondModal,
-  });
-
+  
   return { completed: false };
 })
-.addViewSubmissionHandler("submit_absence", async ({ view, client, inputs }) => {
-  console.log("✅ submit_absence triggered");
+.addViewSubmissionHandler("submit_absence", async ({ view, client, inputs, env }) => {
+  console.log("submit_absence triggered");
 
   const values = view.state.values;
   const user = inputs.interactivity.interactor.name;
 
-  const getValue = (blockId, actionId) => values?.[blockId]?.[actionId]?.value || "";
-  const getSelected = (blockId, actionId) =>
-    values?.[blockId]?.[actionId]?.selected_option?.value || "";
+  const getValue = (blockId, actionId) => {
+    const value = values?.[blockId]?.[actionId]?.value;
+    if (!value) console.warn(`Missing value for ${blockId}/${actionId}`);
+    return value || "";
+  };
+
+  const getSelected = (blockId, actionId) => {
+    const selected = values?.[blockId]?.[actionId]?.selected_option?.value;
+    if (!selected) console.warn(`Missing selected option for ${blockId}/${actionId}`);
+    return selected || "";
+  };
 
   const isRecurring = values.start_block !== undefined;
-
   const rows: string[][] = [];
 
   if (isRecurring) {
     const startDate = new Date(getValue("start_block", "start") + "T00:00:00");
     const endDate = new Date(getValue("end_block", "end") + "T00:00:00");
-    const selectedDays = values.weekdays_block.weekdays_check.selected_options.map(opt => opt.value);
+    const selectedDays = values.weekdays_block.weekdays.selected_options.map(opt => opt.value);
 
-    const type = getSelected("type_block", "type_select");
-    const arrival = getValue("arrival_block", "arrival_input");
-    const departure = getValue("departure_block", "departure_input");
-    const reason = getValue("reason_block", "reason_input");
-    const notes = getValue("notes_block", "notes_input");
+    const type = getSelected("absence_type_block", "absence_type_select");
+    const arrival = getValue("arrival_time_block", "arrival_time");
+    const departure = getValue("departure_time_block", "departure_time");
+    const reason = getValue("reason_block", "reason");
+    const notes = getValue("notes_block", "notes");
 
-    for (
-      let d = new Date(startDate);
-      d <= endDate;
-      d.setDate(d.getDate() + 1)
-    ) {
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       const weekday = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d.getDay()];
       if (selectedDays.includes(weekday)) {
         rows.push([
@@ -248,12 +246,12 @@ export default SlackFunction(
       }
     }
   } else {
-    const date = getValue("date_block", "date_input");
-    const type = getSelected("type_block", "type_select");
-    const arrival = getValue("arrival_block", "arrival_input");
-    const departure = getValue("departure_block", "departure_input");
-    const reason = getValue("reason_block", "reason_input");
-    const notes = getValue("notes_block", "notes_input");
+    const date = getValue("date_block", "date");
+    const type = getSelected("absence_type_block", "absence_type_select");
+    const arrival = getValue("arrival_time_block", "arrival_time");
+    const departure = getValue("departure_time_block", "departure_time");
+    const reason = getValue("reason_block", "reason");
+    const notes = getValue("notes_block", "notes");
 
     rows.push([
       user,
@@ -266,31 +264,61 @@ export default SlackFunction(
     ]);
   }
 
-  console.log("📄 Absence rows to write:", rows);
+  console.log("Absence rows to write:", JSON.stringify(rows, null, 2));
 
-  const sheetId = "YOUR_GOOGLE_SHEET_ID";
-  const response = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1!A1:append?valueInputOption=USER_ENTERED`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${inputs.googleAccessTokenId.access_token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        values: rows,
-        majorDimension: "ROWS",
-      }),
-    }
-  );
+  const auth = await client.apps.auth.external.get({
+    external_token_id: inputs.googleAccessTokenId,
+  });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("❌ Failed to write to Google Sheets:", errorText);
+  if (!auth.ok) {
+    console.error("Failed to get external token:", auth.error);
     return {
       response_action: "errors",
       errors: {
-        notes_block: "Failed to write to Google Sheets.",
+        reason_block: `Token resolution failed: ${auth.error}`,
+      },
+    };
+  }
+
+  const token = auth.external_token;
+  console.log("Resolved token:", token);
+
+  const sheetId = "YOUR_GOOGLE_SHEET_ID";
+  const GOOGLE_SPREADSHEET_RANGE = "A2:G2";
+
+  try {
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SPREADSHEET_ID}/values/${GOOGLE_SPREADSHEET_RANGE}:append?valueInputOption=USER_ENTERED`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          values: rows,
+          majorDimension: "ROWS",
+        }),
+      }
+    );
+
+    const json = await response.json();
+
+    if (!response.ok) {
+      console.error("Failed to write to Google Sheets:", json);
+      return {
+        response_action: "errors",
+        errors: {
+          reason_block: `Sheets error: ${json?.error?.message || "Unknown error"}`,
+        },
+      };
+    }
+  } catch (e) {
+    console.error("Unexpected error posting to Google Sheets:", e);
+    return {
+      response_action: "errors",
+      errors: {
+        reason_block: `Unexpected error: ${e.message}`,
       },
     };
   }
