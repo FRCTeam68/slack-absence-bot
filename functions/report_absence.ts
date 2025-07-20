@@ -1,8 +1,9 @@
 import { DefineFunction, Schema, SlackFunction } from "deno-slack-sdk/mod.ts";
 
 export const ReportAbsenceFunctionDefinition = DefineFunction({
-  callback_id: "report_absence_function",
-  title: "Report Absence (with branching)",
+  callback_id: "report_absence",
+  title: "Report Absence",
+  description: "Store absence in a Google sheet",
   source_file: "functions/report_absence.ts",
   input_parameters: {
     properties: {
@@ -16,28 +17,15 @@ export const ReportAbsenceFunctionDefinition = DefineFunction({
   },
 });
 
-function parseDate(str: string): Date {
-  return new Date(`${str}T00:00:00`);
-}
-
-function formatDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
-
 export default SlackFunction(
   ReportAbsenceFunctionDefinition,
   async ({ inputs, client, env }) => {
+    // Step 1: Show the first modal (recurring or not)
     const result = await client.views.open({
       interactivity_pointer: inputs.interactivity.interactivity_pointer,
       view: {
         type: "modal",
-        callback_id: "choose_absence_type",
+        callback_id: "absence_type_modal",
         title: { type: "plain_text", text: "Report Absence" },
         submit: { type: "plain_text", text: "Next" },
         blocks: [
@@ -58,268 +46,187 @@ export default SlackFunction(
       },
     });
 
-    console.log("First modal opened:", result);
-    return { completed: false };
+    if (!result.ok) {
+      return { error: `Failed to open modal: ${result.error}` };
+    }
+
+    return { completed: false }; // Wait for user input
   }
 )
-.addViewSubmissionHandler("choose_absence_type", async ({ view, client }) => {
-  console.log("✅ choose_absence_type inline handler triggered");
+.addViewSubmissionHandler("absence_type_modal", async ({ view, client, inputs }) => {
+  const recurring = view.state.values.recurring_block.recurring_select.selected_option.value;
 
-  const choice = view.state.values.recurring_block.recurring_select.selected_option.value;
-  const isRecurring = choice === "yes";
-
-  const secondModal = {
-    type: "modal",
-    callback_id: "submit_absence",
-    title: { type: "plain_text", text: "Absence Details" },
-    submit: { type: "plain_text", text: "Submit" },
-    blocks: isRecurring
-      ? [
+  if (recurring === "yes") {
+    // Show recurring absence modal
+    await client.views.open({
+      interactivity_pointer: inputs.interactivity.interactivity_pointer,
+      view: {
+        type: "modal",
+        callback_id: "recurring_absence_modal",
+        title: { type: "plain_text", text: "Recurring Absence" },
+        submit: { type: "plain_text", text: "Submit" },
+        blocks: [
+          {
+            type: "input",
+            block_id: "employee_block",
+            label: { type: "plain_text", text: "Employee" },
+            element: {
+              type: "users_select",
+              action_id: "employee",
+            },
+          },
           {
             type: "input",
             block_id: "start_block",
             label: { type: "plain_text", text: "Start Date" },
-            element: { type: "datepicker", action_id: "start" },
+            element: {
+              type: "datepicker",
+              action_id: "start",
+            },
           },
           {
             type: "input",
             block_id: "end_block",
             label: { type: "plain_text", text: "End Date" },
-            element: { type: "datepicker", action_id: "end" },
-          },
-          {
-            type: "input",
-            block_id: "weekdays_block",
-            label: { type: "plain_text", text: "Which days of the week?" },
             element: {
-              type: "checkboxes",
-              action_id: "weekdays",
-              options: [
-                { text: { type: "plain_text", text: "Monday" }, value: "mon" },
-                { text: { type: "plain_text", text: "Tuesday" }, value: "tue" },
-                { text: { type: "plain_text", text: "Wednesday" }, value: "wed" },
-                { text: { type: "plain_text", text: "Thursday" }, value: "thu" },
-                { text: { type: "plain_text", text: "Friday" }, value: "fri" },
-                { text: { type: "plain_text", text: "Saturday" }, value: "sat" },
-              ],
+              type: "datepicker",
+              action_id: "end",
             },
           },
           {
             type: "input",
             block_id: "reason_block",
             label: { type: "plain_text", text: "Reason" },
-            element: { type: "plain_text_input", action_id: "reason", multiline: true },
-          },
-          {
-            type: "input",
-            block_id: "absence_type_block",
-            label: { type: "plain_text", text: "Type of Absence" },
             element: {
-              type: "static_select",
-              action_id: "absence_type_select",
-              options: [
-                { text: { type: "plain_text", text: "Full Day" }, value: "full_day" },
-                { text: { type: "plain_text", text: "Late Arrival" }, value: "late" },
-                { text: { type: "plain_text", text: "Early Departure" }, value: "early" },
-              ],
+              type: "plain_text_input",
+              action_id: "reason",
             },
           },
+        ],
+      },
+    });
+  } else {
+    // Show one-time absence modal
+    await client.views.open({
+      interactivity_pointer: inputs.interactivity.interactivity_pointer,
+      view: {
+        type: "modal",
+        callback_id: "one_time_absence_modal",
+        title: { type: "plain_text", text: "One-Time Absence" },
+        submit: { type: "plain_text", text: "Submit" },
+        blocks: [
           {
             type: "input",
-            block_id: "arrival_time_block",
-            optional: true,
-            label: { type: "plain_text", text: "Arrival Time" },
-            element: { type: "timepicker", action_id: "arrival_time" },
+            block_id: "employee_block",
+            label: { type: "plain_text", text: "Employee" },
+            element: {
+              type: "users_select",
+              action_id: "employee",
+            },
           },
-          {
-            type: "input",
-            block_id: "departure_time_block",
-            optional: true,
-            label: { type: "plain_text", text: "Departure Time" },
-            element: { type: "timepicker", action_id: "departure_time" },
-          },
-          {
-            type: "input",
-            block_id: "notes_block",
-            optional: true,
-            label: { type: "plain_text", text: "Notes" },
-            element: { type: "plain_text_input", action_id: "notes", multiline: true },
-          },
-        ]
-      : [
           {
             type: "input",
             block_id: "date_block",
             label: { type: "plain_text", text: "Date" },
-            element: { type: "datepicker", action_id: "date" },
+            element: {
+              type: "datepicker",
+              action_id: "date",
+            },
           },
           {
             type: "input",
             block_id: "reason_block",
             label: { type: "plain_text", text: "Reason" },
-            element: { type: "plain_text_input", action_id: "reason", multiline: true },
-          },
-          {
-            type: "input",
-            block_id: "absence_type_block",
-            label: { type: "plain_text", text: "Type of Absence" },
             element: {
-              type: "static_select",
-              action_id: "absence_type_select",
-              options: [
-                { text: { type: "plain_text", text: "Full Day" }, value: "full_day" },
-                { text: { type: "plain_text", text: "Late Arrival" }, value: "late" },
-                { text: { type: "plain_text", text: "Early Departure" }, value: "early" },
-              ],
+              type: "plain_text_input",
+              action_id: "reason",
             },
           },
-          {
-            type: "input",
-            block_id: "arrival_time_block",
-            optional: true,
-            label: { type: "plain_text", text: "Arrival Time" },
-            element: { type: "timepicker", action_id: "arrival_time" },
-          },
-          {
-            type: "input",
-            block_id: "departure_time_block",
-            optional: true,
-            label: { type: "plain_text", text: "Departure Time" },
-            element: { type: "timepicker", action_id: "departure_time" },
-          },
-          {
-            type: "input",
-            block_id: "notes_block",
-            optional: true,
-            label: { type: "plain_text", text: "Notes" },
-            element: { type: "plain_text_input", action_id: "notes", multiline: true },
-          },
         ],
-  };
-  
-  return { completed: false };
-})
-.addViewSubmissionHandler("submit_absence", async ({ view, client, inputs, env }) => {
-  console.log("submit_absence triggered");
-
-  const values = view.state.values;
-  const user = inputs.interactivity.interactor.name;
-
-  const getValue = (blockId, actionId) => {
-    const value = values?.[blockId]?.[actionId]?.value;
-    if (!value) console.warn(`Missing value for ${blockId}/${actionId}`);
-    return value || "";
-  };
-
-  const getSelected = (blockId, actionId) => {
-    const selected = values?.[blockId]?.[actionId]?.selected_option?.value;
-    if (!selected) console.warn(`Missing selected option for ${blockId}/${actionId}`);
-    return selected || "";
-  };
-
-  const isRecurring = values.start_block !== undefined;
-  const rows: string[][] = [];
-
-  if (isRecurring) {
-    const startDate = new Date(getValue("start_block", "start") + "T00:00:00");
-    const endDate = new Date(getValue("end_block", "end") + "T00:00:00");
-    const selectedDays = values.weekdays_block.weekdays.selected_options.map(opt => opt.value);
-
-    const type = getSelected("absence_type_block", "absence_type_select");
-    const arrival = getValue("arrival_time_block", "arrival_time");
-    const departure = getValue("departure_time_block", "departure_time");
-    const reason = getValue("reason_block", "reason");
-    const notes = getValue("notes_block", "notes");
-
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      const weekday = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d.getDay()];
-      if (selectedDays.includes(weekday)) {
-        rows.push([
-          user,
-          d.toISOString().slice(0, 10),
-          type,
-          arrival,
-          departure,
-          reason,
-          notes,
-        ]);
-      }
-    }
-  } else {
-    const date = getValue("date_block", "date");
-    const type = getSelected("absence_type_block", "absence_type_select");
-    const arrival = getValue("arrival_time_block", "arrival_time");
-    const departure = getValue("departure_time_block", "departure_time");
-    const reason = getValue("reason_block", "reason");
-    const notes = getValue("notes_block", "notes");
-
-    rows.push([
-      user,
-      date,
-      type,
-      arrival,
-      departure,
-      reason,
-      notes,
-    ]);
+      },
+    });
   }
 
-  console.log("Absence rows to write:", JSON.stringify(rows, null, 2));
+  return { completed: false }; // Wait for next modal submission
+})
+.addViewSubmissionHandler("recurring_absence_modal", async ({ view, client, inputs, env }) => {
+  // Gather values
+  const employee = view.state.values.employee_block.employee.selected_user;
+  const start = view.state.values.start_block.start.selected_date;
+  const end = view.state.values.end_block.end.selected_date;
+  const reason = view.state.values.reason_block.reason.value;
 
+  // Get user info
+  const user = await client.users.profile.get({ user: employee });
+  const name = user.ok ? user.profile.real_name : employee;
+
+  // Get Google token
   const auth = await client.apps.auth.external.get({
     external_token_id: inputs.googleAccessTokenId,
   });
-
   if (!auth.ok) {
-    console.error("Failed to get external token:", auth.error);
+    return { error: `Failed to collect Google auth token: ${auth.error}` };
+  }
+
+  // Write to Google Sheets (for simplicity, just log start/end/reason)
+  const url =
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SPREADSHEET_ID}/values/Absences!A2:D2:append?valueInputOption=USER_ENTERED`;
+  const sheets = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${auth.external_token}`,
+    },
+    body: JSON.stringify({
+      range: "Absences!A2:D2",
+      majorDimension: "ROWS",
+      values: [[name, employee, `${start} to ${end}`, reason]],
+    }),
+  });
+
+  if (!sheets.ok) {
     return {
-      response_action: "errors",
-      errors: {
-        reason_block: `Token resolution failed: ${auth.error}`,
-      },
+      error: `Failed to save absence to the sheet: ${sheets.statusText}`,
     };
   }
 
-  const token = auth.external_token;
-  console.log("Resolved token:", token);
+  return { completed: true };
+})
+.addViewSubmissionHandler("one_time_absence_modal", async ({ view, client, inputs, env }) => {
+  // Gather values
+  const employee = view.state.values.employee_block.employee.selected_user;
+  const date = view.state.values.date_block.date.selected_date;
+  const reason = view.state.values.reason_block.reason.value;
 
-  const sheetId = "YOUR_GOOGLE_SHEET_ID";
-  const GOOGLE_SPREADSHEET_RANGE = "A2:G2";
+  // Get user info
+  const user = await client.users.profile.get({ user: employee });
+  const name = user.ok ? user.profile.real_name : employee;
 
-  try {
-    const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SPREADSHEET_ID}/values/${GOOGLE_SPREADSHEET_RANGE}:append?valueInputOption=USER_ENTERED`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          values: rows,
-          majorDimension: "ROWS",
-        }),
-      }
-    );
+  // Get Google token
+  const auth = await client.apps.auth.external.get({
+    external_token_id: inputs.googleAccessTokenId,
+  });
+  if (!auth.ok) {
+    return { error: `Failed to collect Google auth token: ${auth.error}` };
+  }
 
-    const json = await response.json();
+  // Write to Google Sheets
+  const url =
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SPREADSHEET_ID}/values/Absences!A2:D2:append?valueInputOption=USER_ENTERED`;
+  const sheets = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${auth.external_token}`,
+    },
+    body: JSON.stringify({
+      range: "Absences!A2:D2",
+      majorDimension: "ROWS",
+      values: [[name, employee, date, reason]],
+    }),
+  });
 
-    if (!response.ok) {
-      console.error("Failed to write to Google Sheets:", json);
-      return {
-        response_action: "errors",
-        errors: {
-          reason_block: `Sheets error: ${json?.error?.message || "Unknown error"}`,
-        },
-      };
-    }
-  } catch (e) {
-    console.error("Unexpected error posting to Google Sheets:", e);
+  if (!sheets.ok) {
     return {
-      response_action: "errors",
-      errors: {
-        reason_block: `Unexpected error: ${e.message}`,
-      },
+      error: `Failed to save absence to the sheet: ${sheets.statusText}`,
     };
   }
 

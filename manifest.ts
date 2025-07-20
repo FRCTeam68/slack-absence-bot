@@ -1,5 +1,5 @@
 import { Manifest } from "deno-slack-sdk/mod.ts";
-import ReportAbsenceWorkflow from "./workflows/report_absence.ts";
+import CollectHoursWorkflow from "./workflows/collect_hours.ts";
 import GoogleProvider from "./external_auth/google_provider.ts";
 
 /**
@@ -11,7 +11,7 @@ export default Manifest({
   name: "absence-bot",
   description: "A form for collecting hours worked",
   icon: "assets/ORANGE-blue-bkgrd.png",
-  workflows: [ReportAbsenceWorkflow],
+  workflows: [CollectHoursWorkflow],
   externalAuthProviders: [GoogleProvider],
   outgoingDomains: ["sheets.googleapis.com"],
   botScopes: [
