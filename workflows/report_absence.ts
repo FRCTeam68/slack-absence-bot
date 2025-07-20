@@ -5,19 +5,21 @@ import { ReportAbsenceFunctionDefinition } from "../functions/report_absence.ts"
 const ReportAbsenceWorkflow = DefineWorkflow({
   callback_id: "report_absence_workflow",
   title: "Report Absence",
-  description: "Report a student absence",
+  description: "Prompt user to report absence and choose between recurring or one-time",
   input_parameters: {
     properties: {
       interactivity: { type: Schema.slack.types.interactivity },
-      googleAccessTokenId: { type: Schema.types.string }, // or Schema.slack.types.oauth2 if using OAuth2
+      // Optionally, add googleAccessTokenId if you want to pass it in
+      // googleAccessTokenId: { type: Schema.slack.types.oauth2, oauth2_provider_key: "google" },
     },
-    required: ["interactivity", "googleAccessTokenId"],
+    required: ["interactivity"],
   },
 });
 
+// Add your custom function as a step
 ReportAbsenceWorkflow.addStep(ReportAbsenceFunctionDefinition, {
   interactivity: ReportAbsenceWorkflow.inputs.interactivity,
-  googleAccessTokenId: ReportAbsenceWorkflow.inputs.googleAccessTokenId,
+  googleAccessTokenId: { credential_source: "DEVELOPER" }, // or use workflow input if you add it above
 });
 
 export default ReportAbsenceWorkflow;

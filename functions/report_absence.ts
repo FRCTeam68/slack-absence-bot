@@ -57,7 +57,7 @@ export default SlackFunction(
   const recurring = view.state.values.recurring_block.recurring_select.selected_option.value;
 
   if (recurring === "yes") {
-    // Show recurring absence modal
+    // Show recurring absence modal with weekday picker
     await client.views.open({
       interactivity_pointer: inputs.interactivity.interactivity_pointer,
       view: {
@@ -91,6 +91,23 @@ export default SlackFunction(
             element: {
               type: "datepicker",
               action_id: "end",
+            },
+          },
+          {
+            type: "input",
+            block_id: "weekdays_block",
+            label: { type: "plain_text", text: "Which days of the week?" },
+            element: {
+              type: "multi_static_select",
+              action_id: "weekdays",
+              options: [
+                { text: { type: "plain_text", text: "Monday" }, value: "1" },
+                { text: { type: "plain_text", text: "Tuesday" }, value: "2" },
+                { text: { type: "plain_text", text: "Wednesday" }, value: "3" },
+                { text: { type: "plain_text", text: "Thursday" }, value: "4" },
+                { text: { type: "plain_text", text: "Friday" }, value: "5" },
+                { text: { type: "plain_text", text: "Saturday" }, value: "6" },
+              ],
             },
           },
           {
@@ -155,6 +172,7 @@ export default SlackFunction(
   const start = view.state.values.start_block.start.selected_date;
   const end = view.state.values.end_block.end.selected_date;
   const reason = view.state.values.reason_block.reason.value;
+  const weekdays = view.state.values.weekdays_block.weekdays.selected_options.map(opt => parseInt(opt.value, 10));
 
   // Get user info
   const user = await client.users.profile.get({ user: employee });
@@ -168,7 +186,26 @@ export default SlackFunction(
     return { error: `Failed to collect Google auth token: ${auth.error}` };
   }
 
-  // Write to Google Sheets (for simplicity, just log start/end/reason)
+  // Prepare rows for each matching date
+  const rows: string[][] = [];
+  let current = new Date(start);
+  const endDate = new Date(end);
+  while (current <= endDate) {
+    // getDay(): Sunday=0, Monday=1, ..., Saturday=6
+    const jsDay = current.getDay();
+    // Our select: Monday=1, ..., Saturday=6
+    if (weekdays.includes(jsDay === 0 ? 7 : jsDay)) { // treat Sunday as 7, not included
+      const dateStr = current.toISOString().slice(0, 10);
+      rows.push([name, employee, dateStr, reason]);
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  if (rows.length === 0) {
+    return { error: "No dates in the range match the selected weekdays." };
+  }
+
+  // Write all rows to Google Sheets
   const url =
     `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SPREADSHEET_ID}/values/Absences!A2:D2:append?valueInputOption=USER_ENTERED`;
   const sheets = await fetch(url, {
@@ -179,7 +216,7 @@ export default SlackFunction(
     body: JSON.stringify({
       range: "Absences!A2:D2",
       majorDimension: "ROWS",
-      values: [[name, employee, `${start} to ${end}`, reason]],
+      values: rows,
     }),
   });
 
