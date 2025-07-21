@@ -2,6 +2,7 @@ import { Manifest } from "deno-slack-sdk/mod.ts";
 import ReportAbsenceWorkflow from "./workflows/report_absence.ts";
 import DailyAbsenceSummaryWorkflow from "./workflows/daily_absence_summary.ts";
 import GoogleProvider from "./external_auth/google_provider.ts";
+import { DailyAbsenceSummaryFunctionDefinition } from "./functions/daily_absence_summary.ts"; // <-- import your function
 
 /**
  * The app manifest contains the app's configuration. This
@@ -13,6 +14,7 @@ export default Manifest({
   description: "A bot for reporting student and mentor absences",
   icon: "assets/ORANGE-blue-bkgrd.png",
   workflows: [ReportAbsenceWorkflow, DailyAbsenceSummaryWorkflow],
+  functions: [DailyAbsenceSummaryFunctionDefinition], // <-- add your function here
   externalAuthProviders: [GoogleProvider],
   outgoingDomains: ["sheets.googleapis.com"],
   botScopes: [
