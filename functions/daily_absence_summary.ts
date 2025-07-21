@@ -65,7 +65,8 @@ export default SlackFunction(
       const today = new Date().toLocaleDateString('en-US', { 
         year: 'numeric', 
         month: 'numeric', 
-        day: 'numeric' 
+        day: 'numeric',
+        timeZone: 'America/New_York' // <-- set your desired timezone
       });
 
       let blocks: any[] = [];
@@ -75,7 +76,7 @@ export default SlackFunction(
         type: "header",
         text: {
           type: "plain_text",
-          text: `Absences for ${today}`,
+          text: `📝 Absences for ${today}`,
           emoji: true
         }
       });
@@ -90,7 +91,7 @@ export default SlackFunction(
           type: "section",
           text: {
             type: "mrkdwn",
-            text: ":tada: *Great news!*\nNo absences reported for today."
+            text: "🎉 *Great news!*\nNo absences reported for today."
           }
         });
       } else {
