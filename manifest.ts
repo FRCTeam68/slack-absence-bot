@@ -1,6 +1,5 @@
 import { Manifest } from "deno-slack-sdk/mod.ts";
 import ReportAbsenceWorkflow from "./workflows/report_absence.ts";
-import DailyAbsenceSummaryWorkflow from "./workflows/daily_absence_summary.ts";
 import GoogleProvider from "./external_auth/google_provider.ts";
 import { DailyAbsenceSummaryFunctionDefinition } from "./functions/daily_absence_summary.ts"; // <-- import your function
 
@@ -10,10 +9,10 @@ import { DailyAbsenceSummaryFunctionDefinition } from "./functions/daily_absence
  * https://api.slack.com/automation/manifest
  */
 export default Manifest({
-  name: "absence-bot",
-  description: "A bot for reporting student and mentor absences",
+  name: "Absence Bot",
+  description: "A bot for reporting student absences",
   icon: "assets/ORANGE-blue-bkgrd.png",
-  workflows: [ReportAbsenceWorkflow, DailyAbsenceSummaryWorkflow],
+  workflows: [ReportAbsenceWorkflow],
   functions: [DailyAbsenceSummaryFunctionDefinition], // <-- add your function here
   externalAuthProviders: [GoogleProvider],
   outgoingDomains: ["sheets.googleapis.com"],
