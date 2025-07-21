@@ -3,7 +3,7 @@ import { ReportAbsenceFunctionDefinition } from "../functions/report_absence.ts"
 
 const ReportAbsenceWorkflow = DefineWorkflow({
   callback_id: "report_absence_workflow",
-  title: "Report Absence",
+  title: "Excused Absence Form",
   description: "Prompt user to report absence and choose between recurring or one-time",
   input_parameters: {
     properties: {

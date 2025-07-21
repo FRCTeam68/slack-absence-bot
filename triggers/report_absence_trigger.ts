@@ -11,8 +11,8 @@ import ReportAbsenceWorkflow from "../workflows/report_absence.ts";
 
 const reportAbsenceTrigger: Trigger<typeof ReportAbsenceWorkflow.definition> = {
   type: TriggerTypes.Shortcut,
-  name: "Report Absence",
-  description: "Report a student absence",
+  name: "Excused Absence Form",
+  description: "Fill out this form to report an excused absence.",
   workflow: `#/workflows/${ReportAbsenceWorkflow.definition.callback_id}`,
   inputs: {
     interactivity: {
