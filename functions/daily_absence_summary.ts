@@ -57,7 +57,9 @@ export default SlackFunction(
       const rows = data.values || [];
       
       // Skip header row if it exists
-      const absenceRows = rows.slice(1);
+      const absenceRows = rows.slice(1).filter(
+        row => !row.some(cell => cell === "#N/A")
+      );
       
       console.log(`Found ${absenceRows.length} absences for today`);
 
