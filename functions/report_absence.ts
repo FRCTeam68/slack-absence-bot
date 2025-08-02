@@ -150,6 +150,7 @@ export default SlackFunction(
           element: {
             type: "plain_text_input",
             action_id: "reason_rec",
+            hint: { type: "plain_text", text: "This will be kept confidential" },
           },
         },
         {
@@ -192,6 +193,7 @@ export default SlackFunction(
           element: {
             type: "plain_text_input",
             action_id: "reason_one",
+            hint: { type: "plain_text", text: "This will be kept confidential" },
           },
         },
         {
