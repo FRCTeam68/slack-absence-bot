@@ -190,10 +190,10 @@ export default SlackFunction(
           type: "input",
           block_id: "reason_block_one",
           label: { type: "plain_text", text: "Reason" },
+          hint: { type: "plain_text", text: "This will be kept confidential" }, // <-- move here
           element: {
             type: "plain_text_input",
             action_id: "reason_one",
-            hint: { type: "plain_text", text: "This will be kept confidential" },
           },
         },
         {
