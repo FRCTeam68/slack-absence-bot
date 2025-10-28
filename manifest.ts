@@ -20,5 +20,7 @@ export default Manifest({
     "commands",
     "users.profile:read",
     "chat:write",
+    "conversations:write",
+    "conversations:read",
   ],
 });
