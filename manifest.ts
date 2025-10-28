@@ -19,8 +19,6 @@ export default Manifest({
   botScopes: [
     "commands",
     "users.profile:read",
-    "chat:write",
-    "conversations:write",
-    "conversations:read",
+    "chat:write"
   ],
 });

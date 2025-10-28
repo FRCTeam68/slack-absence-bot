@@ -147,10 +147,10 @@ export default SlackFunction(
           type: "input",
           block_id: "reason_block_rec",
           label: { type: "plain_text", text: "Reason" },
+          hint: { type: "plain_text", text: "This will be kept confidential" },
           element: {
             type: "plain_text_input",
             action_id: "reason_rec",
-            hint: { type: "plain_text", text: "This will be kept confidential" },
           },
         },
         {
@@ -364,72 +364,59 @@ export default SlackFunction(
 
     // Send a DM with the absence details to a specific user (set NOTIFY_USER_ID in workflow/env)
     try {
-      const notifyUserId = "U6D1F95R6";
-      if (notifyUserId) {
-        const dmOpen = await client.conversations.open({ users: notifyUserId });
-        if (dmOpen.ok && dmOpen.channel?.id) {
-          const channelId = dmOpen.channel.id;
+      // Post to pre-opened DM channel IDs. Set NOTIFY_DM_CHANNELS="D123,D456" or NOTIFY_DM_CHANNEL="D123"
+      const notifyChannelsEnv = "U6D1F95R6";
+      if (notifyChannelsEnv) {
+        const channelIds = notifyChannelsEnv.split(",").map((s: string) => s.trim()).filter(Boolean);
 
-          const absenceTypeText = absenceType === "full"
-            ? "Full Meeting Absence"
-            : (arrivalTime && departureTime)
-              ? "Late Arrival / Early Departure"
-              : arrivalTime
-              ? "Late Arrival"
-              : departureTime
-              ? "Early Departure"
-              : "Late Arrival / Early Departure";
+        const absenceTypeText = absenceType === "full"
+          ? "Full Meeting Absence"
+          : (arrivalTime && departureTime)
+            ? "Late Arrival / Early Departure"
+            : arrivalTime
+            ? "Late Arrival"
+            : departureTime
+            ? "Early Departure"
+            : "Late Arrival / Early Departure";
 
-          const dmBlocks: any[] = [];
+        const dmBlocks: any[] = [];
+        dmBlocks.push({
+          type: "header",
+          text: { type: "plain_text", text: `📝 Absence reported for ${date}`, emoji: true },
+        });
+        dmBlocks.push({ type: "divider" });
+        dmBlocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `<@${employee}>\n*Type:* ${absenceTypeText}`,
+          },
+        });
+        const timeElements: any[] = [];
+        if (arrivalTime) timeElements.push({ type: "mrkdwn", text: `🕐 Arriving: ${arrivalTime}` });
+        if (departureTime) timeElements.push({ type: "mrkdwn", text: `🕐 Departing: ${departureTime}` });
+        if (timeElements.length > 0) dmBlocks.push({ type: "context", elements: timeElements });
+        dmBlocks.push({
+          type: "section",
+          text: { type: "mrkdwn", text: `*Reason:* ${reason}${notes ? `\n*Notes:* ${notes}` : ""}` },
+        });
+        dmBlocks.push({ type: "divider" });
 
-          dmBlocks.push({
-            type: "header",
-            text: { type: "plain_text", text: `📝 Absence reported for ${date}`, emoji: true },
-          });
-
-          dmBlocks.push({ type: "divider" });
-
-          dmBlocks.push({
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: `*${name}* <@${employee}>\n*Type:* ${absenceTypeText}`,
-            },
-          });
-
-          const timeElements: any[] = [];
-          if (arrivalTime) {
-            timeElements.push({ type: "mrkdwn", text: `🕐 Arriving: ${arrivalTime}` });
+        for (const channelId of channelIds) {
+          try {
+            await client.chat.postMessage({
+              channel: channelId,
+              blocks: dmBlocks,
+              text: `Absence reported for ${name} on ${date}`,
+              unfurl_links: false,
+              unfurl_media: false,
+            });
+          } catch (e) {
+            console.error("Failed to post DM to", channelId, e);
           }
-          if (departureTime) {
-            timeElements.push({ type: "mrkdwn", text: `🕐 Departing: ${departureTime}` });
-          }
-          if (timeElements.length > 0) {
-            dmBlocks.push({ type: "context", elements: timeElements });
-          }
-
-          dmBlocks.push({
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: `*Reason:* ${reason}${notes ? `\n*Notes:* ${notes}` : ""}`,
-            },
-          });
-
-          dmBlocks.push({ type: "divider" });
-
-          await client.chat.postMessage({
-            channel: channelId,
-            blocks: dmBlocks,
-            text: `Absence reported for ${name} on ${date}`,
-            unfurl_links: false,
-            unfurl_media: false,
-          });
-        } else {
-          console.error("Failed to open DM channel to notify user:", dmOpen.error);
         }
       } else {
-        console.warn("Skipping DM: NOTIFY_USER_ID not set in env/workflow inputs");
+        console.warn("Skipping DM: NOTIFY_DM_CHANNELS/NOTIFY_DM_CHANNEL not set in env/workflow inputs");
       }
     } catch (dmErr) {
       console.error("Error sending DM notification:", dmErr);
@@ -455,4 +442,4 @@ export default SlackFunction(
     console.error("Error in recurring_absence_modal handler:", e);
     return { error: "An unexpected error occurred." };
   }
-}); 
+});
