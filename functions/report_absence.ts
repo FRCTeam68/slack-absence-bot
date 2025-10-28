@@ -304,17 +304,38 @@ export default SlackFunction(
           ? "Early Departure"
           : "Late Arrival / Early Departure";
 
+      // Convert numeric weekdays (1=Mon .. 7=Sun) into readable names for the DM
+      const dayNameMap: Record<number, string> = {
+        1: "Mon",
+        2: "Tue",
+        3: "Wed",
+        4: "Thu",
+        5: "Fri",
+        6: "Sat",
+        7: "Sun",
+      };
+      const selectedDays = (weekdays || []).map((d: number) => dayNameMap[d] || String(d)).join(", ");
+
       const dmBlocks: any[] = [];
       dmBlocks.push({
         type: "header",
-        text: { type: "plain_text", text: `📝 Recurring absence ${start} → ${end}`, emoji: true },
+        text: { type: "plain_text", text: `📝 Recurring absence reported for ${start} → ${end}`, emoji: true },
       });
       dmBlocks.push({ type: "divider" });
+      // show which weekdays the recurrence applies to
+      if (selectedDays) {
+        dmBlocks.push({
+          type: "context",
+          elements: [
+            { type: "mrkdwn", text: `*Days:* ${selectedDays}` },
+          ],
+        });
+      }
       dmBlocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*${name}* <@${employee}>\n*Type:* ${absenceTypeText}`,
+          text: `<@${employee}>\n*Type:* ${absenceTypeText}`,
         },
       });
 
