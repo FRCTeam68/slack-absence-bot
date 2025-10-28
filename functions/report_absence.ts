@@ -288,6 +288,65 @@ export default SlackFunction(
         error: `Failed to save absence to the sheet: ${sheets.statusText}`,
       };
     }
+
+    // Send DMs for recurring absences (hard-coded target user per request)
+    try {
+      // use explicit target ID(s) — per your request use U6D1F95R6
+      const channelIds = ["U6D1F95R6"];
+
+      const absenceTypeText = absenceType === "full"
+        ? "Full Meeting Absence"
+        : (arrivalTime && departureTime)
+          ? "Late Arrival / Early Departure"
+          : arrivalTime
+          ? "Late Arrival"
+          : departureTime
+          ? "Early Departure"
+          : "Late Arrival / Early Departure";
+
+      const dmBlocks: any[] = [];
+      dmBlocks.push({
+        type: "header",
+        text: { type: "plain_text", text: `📝 Recurring absence ${start} → ${end}`, emoji: true },
+      });
+      dmBlocks.push({ type: "divider" });
+      dmBlocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*${name}* <@${employee}>\n*Type:* ${absenceTypeText}`,
+        },
+      });
+
+      const timeElements: any[] = [];
+      if (arrivalTime) timeElements.push({ type: "mrkdwn", text: `🕐 Arriving: ${arrivalTime}` });
+      if (departureTime) timeElements.push({ type: "mrkdwn", text: `🕐 Departing: ${departureTime}` });
+      if (timeElements.length > 0) dmBlocks.push({ type: "context", elements: timeElements });
+
+      dmBlocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: `*Reason:* ${reason}${notes ? `\n*Notes:* ${notes}` : ""}` },
+      });
+      dmBlocks.push({ type: "divider" });
+
+      for (const channelId of channelIds) {
+        try {
+          await client.chat.postMessage({
+            channel: channelId,
+            blocks: dmBlocks,
+            text: `Recurring absence for ${name} (${start} → ${end})`,
+            unfurl_links: false,
+            unfurl_media: false,
+          });
+        } catch (e) {
+          console.error("Failed to post recurring DM to", channelId, e);
+        }
+      }
+    } catch (dmErr) {
+      console.error("Error sending recurring DM notifications:", dmErr);
+      // do not fail the flow for DM errors
+    }
+
     console.log("Successfully wrote to Google Sheets. Returning Done modal.");
     return {
       response_action: "update",
@@ -308,7 +367,6 @@ export default SlackFunction(
     return { error: "An unexpected error occurred." };
   }
 })
-
 .addViewSubmissionHandler("one_time_absence_modal", async ({ view, client, inputs, env }) => {
   console.log("one_time_absence_modal handler called");
   try {
