@@ -289,6 +289,79 @@ export default SlackFunction(
       };
     }
 
+    // Send a DM with the absence details to a specific user (set NOTIFY_USER_ID in workflow/env)
+    try {
+      const notifyUserId = "U6D1F95R6";
+      if (notifyUserId) {
+        const dmOpen = await client.conversations.open({ users: notifyUserId });
+        if (dmOpen.ok && dmOpen.channel?.id) {
+          const channelId = dmOpen.channel.id;
+
+          const absenceTypeText = absenceType === "full"
+            ? "Full Meeting Absence"
+            : (arrivalTime && departureTime)
+              ? "Late Arrival / Early Departure"
+              : arrivalTime
+              ? "Late Arrival"
+              : departureTime
+              ? "Early Departure"
+              : "Late Arrival / Early Departure";
+
+          const dmBlocks: any[] = [];
+
+          dmBlocks.push({
+            type: "header",
+            text: { type: "plain_text", text: `📝 Absence reported for ${date}`, emoji: true },
+          });
+
+          dmBlocks.push({ type: "divider" });
+
+          dmBlocks.push({
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `*${name}* <@${employee}>\n*Type:* ${absenceTypeText}`,
+            },
+          });
+
+          const timeElements: any[] = [];
+          if (arrivalTime) {
+            timeElements.push({ type: "mrkdwn", text: `🕐 Arriving: ${arrivalTime}` });
+          }
+          if (departureTime) {
+            timeElements.push({ type: "mrkdwn", text: `🕐 Departing: ${departureTime}` });
+          }
+          if (timeElements.length > 0) {
+            dmBlocks.push({ type: "context", elements: timeElements });
+          }
+
+          dmBlocks.push({
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `*Reason:* ${reason}${notes ? `\n*Notes:* ${notes}` : ""}`,
+            },
+          });
+
+          dmBlocks.push({ type: "divider" });
+
+          await client.chat.postMessage({
+            channel: channelId,
+            blocks: dmBlocks,
+            text: `Absence reported for ${name} on ${date}`,
+            unfurl_links: false,
+            unfurl_media: false,
+          });
+        } else {
+          console.error("Failed to open DM channel to notify user:", dmOpen.error);
+        }
+      } else {
+        console.warn("Skipping DM: NOTIFY_USER_ID not set in env/workflow inputs");
+      }
+    } catch (dmErr) {
+      console.error("Error sending DM notification:", dmErr);
+      // do not fail the flow for DM errors — still return success modal
+
     console.log("Successfully wrote to Google Sheets. Returning Done modal.");
     return {
       response_action: "update",
