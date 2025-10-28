@@ -292,7 +292,7 @@ export default SlackFunction(
     // Send DMs for recurring absences (hard-coded target user per request)
     try {
       // use explicit target ID(s) — per your request use U6D1F95R6
-      const channelIds = ["U6D1F95R6"];
+      const channelIds = ["U6D1F95R6", "U6J3ZA92Q"];
 
       const absenceTypeText = absenceType === "full"
         ? "Full Meeting Absence"
@@ -443,11 +443,10 @@ export default SlackFunction(
 
     // Send a DM with the absence details to a specific user (set NOTIFY_USER_ID in workflow/env)
     try {
-      // Post to pre-opened DM channel IDs. Set NOTIFY_DM_CHANNELS="D123,D456" or NOTIFY_DM_CHANNEL="D123"
-      const notifyChannelsEnv = "U6D1F95R6";
-      if (notifyChannelsEnv) {
-        const channelIds = notifyChannelsEnv.split(",").map((s: string) => s.trim()).filter(Boolean);
+      // use explicit target ID(s) — match recurring behavior
+      const channelIds = ["U6D1F95R6", "U6J3ZA92Q"];
 
+      if (channelIds.length > 0) {
         const absenceTypeText = absenceType === "full"
           ? "Full Meeting Absence"
           : (arrivalTime && departureTime)
@@ -495,7 +494,7 @@ export default SlackFunction(
           }
         }
       } else {
-        console.warn("Skipping DM: NOTIFY_DM_CHANNELS/NOTIFY_DM_CHANNEL not set in env/workflow inputs");
+        console.warn("Skipping DM: no channelIds configured");
       }
     } catch (dmErr) {
       console.error("Error sending DM notification:", dmErr);
